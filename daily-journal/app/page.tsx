@@ -1,4 +1,5 @@
 import DailyThought from "./components/DailyThought";
+//import competencies from "./api/competencies";
 
 // page.tsx specifies the home page of a Next.js app
 export default function Home() {
