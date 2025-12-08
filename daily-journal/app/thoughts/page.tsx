@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 
+
 type Thought = {
     text: string;
     time: string;
@@ -72,6 +73,7 @@ export default function Thoughts() {
                             <div 
                                 key={index}
                                 className="bg-white/20 p-3 rounded-lg shadow-sm">
+                                    
                                 <p className="text-lg">{thought.text}</p>
                                 <p className="text-sm opacity-80 mt-1">{thought.time}</p>
                                 {thought.competencies.length > 0 && (
@@ -82,8 +84,18 @@ export default function Thoughts() {
             
                                     }
                                 </p>
+                               // 
+                               
+                               
                             )}      
                             </div>
+
+                            
+                            
+                        
+                            
+
+
                         ))
                     )}
                 </div>
