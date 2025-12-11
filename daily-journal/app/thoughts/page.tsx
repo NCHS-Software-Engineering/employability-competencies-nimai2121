@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 
 
 type Thought = {
+    id: number;
     text: string;
     time: string;
     competencies: number[];
@@ -39,6 +40,7 @@ export default function Thoughts() {
             // Transform the response into a Thought
             const formatted: Thought[] = data.map((row) => (
                 {
+                    id: row.id,
                     text: row.text,
                     time: new Date(row.createdAt).toLocaleString("en-US", {
                         month: "short",
@@ -47,7 +49,7 @@ export default function Thoughts() {
                         hour: "2-digit",
                         minute: "2-digit",
                     }),
-                    competencies: row.competencies,
+                    competencies: (row.competencies && row.competencies.filter((c: any) => c !== null)) || [],
                 }
             ));
             setThoughts(formatted);
@@ -69,36 +71,57 @@ export default function Thoughts() {
             <h2 className="text-2xl font-bold mb-4 text-[#ff0000]">All My Thoughts</h2>
             <div className="space-y-4">
                     {thoughts.length === 0 ? (<p className="italic text-center">No thoughts yet. Start typing!</p>) : (
-                        thoughts.map((thought, index) => (
-                            <div 
-                                key={index}
-                                className="bg-white/20 p-3 rounded-lg shadow-sm">
-                                    
-                                <p className="text-lg">{thought.text}</p>
-                                <p className="text-sm opacity-80 mt-1">{thought.time}</p>
-                                {thought.competencies.length > 0 && (
-                                <p className="text-sm mt-1">
-                                    <strong>Competencies: </strong>
-                                    {thought.competencies.map((id) =>
-                                        competencies.find((c) => c.id === id)?.skill || `#${id}`).join(", ")
-            
-                                    }
-                                </p>
-                               // 
-                               
-                               
-                            )}      
-                            </div>
+                            thoughts.map((thought) => (
+                                <div key={thought.id} className="bg-white p-4 rounded-lg shadow-sm border">
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className="flex-1">
+                                            <p className="text-lg font-medium leading-relaxed break-words">{thought.text}</p>
+                                            <p className="text-sm text-gray-500 mt-2">{thought.time}</p>
 
-                            
-                            
-                        
-                            
+                                            {thought.competencies.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                    {thought.competencies.map((id) => {
+                                                        const name = competencies.find((c) => c.id === id)?.skill || `#${id}`;
+                                                        return (
+                                                            <span key={id} className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">{name}</span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
 
-
-                        ))
+                                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                                            <button
+                                                onClick={async () => {
+                                                    const newText = window.prompt("Edit thought:", thought.text);
+                                                    if (!newText || newText.trim() === "") return;
+                                                    const res = await fetch(`/api/entry/${thought.id}`, {
+                                                        method: "PUT",
+                                                        headers: {"Content-Type": "application/json"},
+                                                        body: JSON.stringify({ text: newText, competencyIDs: thought.competencies }),
+                                                    });
+                                                    if (!res.ok) { alert("Failed to update entry."); return; }
+                                                    setThoughts((prev) => prev.map(t => t.id === thought.id ? { ...t, text: newText } : t));
+                                                }}
+                                                className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded">
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm("Delete this thought?")) return;
+                                                    const res = await fetch(`/api/entry/${thought.id}`, { method: "DELETE" });
+                                                    if (!res.ok) { alert("Failed to delete"); return; }
+                                                    setThoughts((prev) => prev.filter(t => t.id !== thought.id));
+                                                }}
+                                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
                     )}
-                </div>
+            </div>
         </div>
     );
 }

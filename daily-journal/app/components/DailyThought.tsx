@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 
 // Custom types should generally be stored in a separate file within lib
 type Thought = {
+    id: number;
     text: string;
     time: string;
     competencies: number[];
@@ -38,6 +39,7 @@ export default function DailyThought() {
     const [thoughts, setThoughts] = useState<Thought[]>([]);
     const [competencies, setCompetencies] = useState<Competency[]>([]);
     const [selected, setSelected] = useState<number[]>([]);
+    const [editingId, setEditingId] = useState<number | null>(null);
     
     // Load competencies from API
     // useEffect is a React hook that runs after a component renders
@@ -66,6 +68,7 @@ export default function DailyThought() {
             // Transform the response into a Thought
             const formatted: Thought[] = data.map((row) => (
                 {
+                    id: row.id,
                     text: row.text,
                     time: new Date(row.createdAt).toLocaleString("en-US", {
                         month: "short",
@@ -74,7 +77,7 @@ export default function DailyThought() {
                         hour: "2-digit",
                         minute: "2-digit",
                     }),
-                    competencies: row.competencies,
+                       competencies: (row.competencies && row.competencies.filter((c: any) => c !== null)) || [],
                 }
             ));
             setThoughts(formatted);
@@ -95,40 +98,71 @@ export default function DailyThought() {
         Create a new Thought object and add it to the others thoughts
     */
     const handleSave = async () => {
-        // If the input box is empty, return without doing anything
         if (input.trim() === "") return;
 
-       const res = await fetch("api/entry", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                text: input,
-                competencyIDs: selected, // must match API route
-            }),
-       });
+        if (editingId !== null) {
+            const res = await fetch(`/api/entry/${editingId}`, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    text: input,
+                    competencyIDs: selected,
+                }),
+            });
 
-       if (!res.ok) {
-        alert("Failed to save entry.");
-        return;
-       }
+            if (!res.ok) {
+                alert("Failed to update entry.");
+                return;
+            }
 
-        // Create a new Thought object and clear the input box
-        const newThought = await res.json();
-        const formattedThought: Thought = {
-            text: newThought.text,
-            time: new Date(newThought.createdAt).toLocaleString("en-US", {
-                month: "short",
-                day: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-            }),
-            competencies: newThought.competencies,
-        };
+            const updated = thoughts.map(t => {
+                if (t.id === editingId) {
+                    return {
+                        ...t,
+                        text: input,
+                        competencies: selected,
+                    };
+                }
+                return t;
+            });
 
-        setThoughts([formattedThought, ...thoughts]);
-        setInput("");
-        setSelected([]);
+            setThoughts(updated);
+            setInput("");
+            setSelected([]);
+            setEditingId(null);
+        } else {
+            const res = await fetch("api/entry", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    text: input,
+                    competencyIDs: selected,
+                }),
+            });
+
+            if (!res.ok) {
+                alert("Failed to save entry.");
+                return;
+            }
+
+            const newThought = await res.json();
+            const formattedThought: Thought = {
+                id: newThought.id,
+                text: newThought.text,
+                time: new Date(newThought.createdAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                }),
+                competencies: newThought.competencies,
+            };
+
+            setThoughts([formattedThought, ...thoughts]);
+            setInput("");
+            setSelected([]);
+        }
     }
 
     /*  toggleCompetency Function
@@ -142,6 +176,32 @@ export default function DailyThought() {
             // If prev does not include the id, add id to prev
             prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
         );
+    };
+
+    const handleDelete = async (id: number) => {
+        const res = await fetch(`/api/entry/${id}`, {
+            method: "DELETE",
+        });
+
+        if (!res.ok) {
+            alert("Failed to delete");
+            return;
+        }
+
+        setThoughts(thoughts.filter(t => t.id !== id));
+    };
+
+    const handleEdit = (thought: Thought) => {
+        setInput(thought.text);
+        setSelected(thought.competencies);
+        setEditingId(thought.id);
+        window.scrollTo(0, 0);
+    };
+
+    const handleCancel = () => {
+        setInput("");
+        setSelected([]);
+        setEditingId(null);
     };
 
     // The return of our DailyThought component will return the actual HTML of the component
@@ -187,8 +247,15 @@ export default function DailyThought() {
             <button
                 onClick={handleSave}
                 className="mt-3 bg-white text-[#ff0000] px-4 py-2 rounded-md font-semibold hover:bg-[#000000] transition-colors cursor-pointer">
-                Save Thought
+                {editingId !== null ? "Update" : "Save Thought"}
             </button>
+            {editingId !== null && (
+                <button
+                    onClick={handleCancel}
+                    className="mt-3 ml-2 bg-gray-400 text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-500 transition-colors cursor-pointer">
+                    Cancel
+                </button>
+            )}
             
             {/* Shows the most recent 5 thoughts - The slice function is used to limit the thoughts to 5
                 If there are no thoughts, display the paragraph instead
@@ -198,10 +265,17 @@ export default function DailyThought() {
                 {thoughts.length === 0 ? (<p className="italic text-center">No thoughts yet. Start typing!</p>) : (
                     thoughts.slice(0, 5).map((thought, index) => (
                         <div 
-                            key={index}
+                            key={thought.id}
                             className="bg-white/20 p-3 rounded-lg shadow-sm">
-                            <p className="text-lg">{thought.text}</p>
-                            <p className="text-sm opacity-80 mt-1">{thought.time}</p>  
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                    <p className="text-lg">{thought.text}</p>
+                                    <p className="text-sm opacity-80 mt-1">{thought.time}</p>
+                                </div>
+                                <div className="flex items-center gap-2 ml-2">
+                                    <a href="/thoughts" className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-black text-xs rounded flex-shrink-0">Manage</a>
+                                </div>
+                            </div>
                             {thought.competencies.length > 0 && (
                                 <p className="text-sm mt-1">
                                     <strong>Competencies: </strong>
